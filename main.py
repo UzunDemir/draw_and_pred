@@ -1,85 +1,24 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import load_model
-from PIL import Image, ImageOps
-import matplotlib.pyplot as plt
-import cv2
 import streamlit as st
+from streamlit_drawable_canvas import st_canvas
 
-# Загрузка модели
-model = load_model('mnist_cnn_mod.h5')
+st.title("Drawable Canvas")
+st.markdown("""
+Draw on the canvas, get the image data back into Python !
+* Doubleclick to remove the selected object when not in drawing mode
+""")
+st.sidebar.header("Configuration")
 
-# Функция для предобработки изображения
-def preprocess_image(img):
-    img = img.resize((28, 28))  # Изменение размера до 28x28
-    img = img.convert('L')  # Преобразование в оттенки серого
-    
-    # Удаление фона
-    img_np = np.array(img)
-    _, binary_img = cv2.threshold(img_np, 128, 255, cv2.THRESH_BINARY_INV)
-    
-    # Поиск контуров
-    contours, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Создание маски для заливки контуров
-    mask = np.zeros_like(binary_img)
-    
-    # Закрашивание контуров
-    cv2.drawContours(mask, contours, -1, (255), thickness=cv2.FILLED)
-    
-    # Применение маски к исходному изображению
-    img_filled = cv2.bitwise_and(binary_img, mask)
-    
-    img_filled_pil = Image.fromarray(img_filled)
-    
-    # Нормализация изображения
-    img_array = np.array(img_filled_pil) / 255.0
-    img_array = img_array.reshape((1, 28, 28, 1))  # Добавление размерности канала
-    return img, img_filled_pil, img_array
+# Specify brush parameters and drawing mode
+b_width = st.sidebar.slider("Brush width: ", 1, 100, 10)
+b_color = st.sidebar.beta_color_picker("Enter brush color hex: ")
+bg_color = st.sidebar.beta_color_picker("Enter background color hex: ", "#eee")
+drawing_mode = st.sidebar.checkbox("Drawing mode ?", True)
 
-# Функция для загрузки и предсказания
-def predict_digit(img):
-    img, img_filled, img_array = preprocess_image(img)
-    
-    # Предсказание класса с использованием модели
-    prediction = model.predict(img_array)
-    predicted_class = np.argmax(prediction)
-    
-    return img, img_filled, predicted_class
-
-# Streamlit приложение
-st.title('Рисование цифр и предсказание')
-st.write('Нарисуйте цифру внизу, затем нажмите кнопку "Предсказать".')
-
-# Виджет для рисования
-canvas_result = st.canvas(
-    fill_color="white",
-    stroke_width=10,
-    stroke_color="black",
-    background_color="white",
-    width=280,
-    height=280,
-    drawing_mode="freedraw",
-    key="canvas",
+# Create a canvas component
+image_data = st_canvas(
+    b_width, b_color, bg_color, height=150, drawing_mode=drawing_mode, key="canvas"
 )
 
-if canvas_result.image_data is not None:
-    img = Image.fromarray((canvas_result.image_data * 255).astype(np.uint8))
-    img = img.convert('L')  # Преобразование в оттенки серого
-    
-    if st.button('Предсказать'):
-        img, img_filled, predicted_digit = predict_digit(img)
-        
-        # Показ исходного и предобработанного изображений
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
-        axes[0].imshow(img, cmap='gray')
-        axes[0].set_title('Исходное изображение')
-        axes[0].axis('off')
-
-        axes[1].imshow(img_filled, cmap='gray')
-        axes[1].set_title('Изображение без фона и закрашенное')
-        axes[1].axis('off')
-
-        st.pyplot(fig)
-        st.write(f'Предсказанная цифра: {predicted_digit}')
+# Do something interesting with the image data
+if image_data is not None:
+    st.image(image_data)
